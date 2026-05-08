@@ -29,11 +29,15 @@ func main() {
 		scanner.Scan()
 		message := scanner.Text()
 
+		if message == "exit" {
+			break
+		}
+
 		resp, err := client.CreateChatCompletion(
 			context.Background(),
 			openrouter.ChatCompletionRequest{
 				Messages: []openrouter.ChatCompletionMessage{
-					openrouter.UserMessage(message),
+					openrouter.UserMessage(buildPrompt(message)),
 				},
 			},
 		)
@@ -41,7 +45,9 @@ func main() {
 			fmt.Printf("ChatCompletion error: %v\n", err)
 			return
 		}
-		fmt.Println(resp.Choices[0].Message.Content)
+		fmt.Println(resp.Model+": ", resp.Choices[0].Message.Content)
 	}
+
+	fmt.Printf("Thanks for using codegen")
 
 }
