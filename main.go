@@ -14,6 +14,26 @@ import (
 	openrouter "github.com/revrost/go-openrouter"
 )
 
+func parseToolCall(content string) *ToolCall {
+	content = strings.TrimSpace(content)
+
+	var toolCall ToolCall
+	if err := json.Unmarshal([]byte(content), &toolCall); err == nil && toolCall.Tool != "" {
+		return &toolCall
+	}
+
+	start := strings.Index(content, "{")
+	end := strings.LastIndex(content, "}")
+	if start != -1 && end != -1 && end > start {
+		jsonStr := content[start : end+1]
+		if err := json.Unmarshal([]byte(jsonStr), &toolCall); err == nil && toolCall.Tool != "" {
+			return &toolCall
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -72,7 +92,7 @@ func main() {
 					fullResponse.WriteString(token)
 				}
 			}
-			fmt.Println("\n-------------------------------------------------\n")
+			fmt.Println("\n-------------------------------------------------")
 
 			stream.Close()
 
@@ -80,20 +100,18 @@ func main() {
 
 			messages = append(messages, openrouter.AssistantMessage(content))
 
-			var toolCall ToolCall
+			toolCall := parseToolCall(content)
 
-			err = json.Unmarshal([]byte(content), &toolCall)
-
-			if err == nil && toolCall.Tool != "" {
+			if toolCall != nil && toolCall.Tool != "" {
 				depth++
 
 				if depth >= maxDepth {
-					fmt.Println("\n\n(max tool depth reached)")
+					fmt.Println("\n(max tool depth reached)")
 					break
 				}
 
 				fmt.Println()
-				result := callTool(toolCall)
+				result := callTool(*toolCall)
 
 				messages = append(messages, openrouter.UserMessage("Tool result: "+result))
 

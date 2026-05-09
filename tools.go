@@ -10,8 +10,10 @@ func callTool(toolCall ToolCall) string {
 	switch toolCall.Tool {
 
 	case "readFile":
-		result := readFile(toolCall.Arguments.Filename)
-		return result
+		return readFile(toolCall.Arguments.Filename)
+
+	case "writeFile":
+		return writeFile(toolCall.Arguments.Filename, toolCall.Arguments.Content)
 
 	default:
 		fmt.Println("unknown tool")
@@ -29,4 +31,15 @@ func readFile(filePath string) string {
 	check(err)
 
 	return string(data)
+}
+
+func writeFile(filePath string, content string) string {
+	wd, err := os.Getwd()
+	check(err)
+
+	path := filepath.Join(wd, filePath)
+	err = os.WriteFile(path, []byte(content), 0644)
+	check(err)
+
+	return "File written: " + path
 }

@@ -33,16 +33,15 @@ Arguments:
 Purpose:
 Reads a file from disk.
 
-After returning a tool call and receiving the result, continue the conversation naturally — do not call the same tool again for the same purpose unless needed.
-
-Available tools:
-
-1. readFile
+2. writeFile
 Arguments:
 - filename (string)
+- content (string)
 
 Purpose:
-Reads a file from disk.
+Writes content to a file, creating it if needed.
+
+After returning a tool call and receiving the result, continue the conversation naturally — do not call the same tool again for the same purpose unless needed.
 `
 
 func buildSystemPrompt() string {
