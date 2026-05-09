@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
@@ -14,6 +15,9 @@ func callTool(toolCall ToolCall) string {
 
 	case "writeFile":
 		return writeFile(toolCall.Arguments.Filename, toolCall.Arguments.Content)
+
+	case "bash":
+		return bash(toolCall.Arguments.Command)
 
 	default:
 		fmt.Println("unknown tool")
@@ -42,4 +46,13 @@ func writeFile(filePath string, content string) string {
 	check(err)
 
 	return "File written: " + path
+}
+
+func bash(command string) string {
+	cmd := exec.Command("bash", "-c", command)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("bash error: %v\n%s", err, output)
+	}
+	return string(output)
 }
