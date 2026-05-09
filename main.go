@@ -2,12 +2,16 @@ package main
 
 import (
 	"bufio"
-	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/joho/godotenv"
-	openrouter "github.com/revrost/go-openrouter"
+	"io"
 	"log"
 	"os"
+	"strings"
+
+	"github.com/joho/godotenv"
+	openrouter "github.com/revrost/go-openrouter"
 )
 
 func main() {
@@ -18,36 +22,63 @@ func main() {
 
 	scanner := bufio.NewScanner(os.Stdin)
 
-	client := openrouter.NewClient(
-		os.Getenv("OPENROUTER_KEY"),
-		openrouter.WithXTitle("My App"),
-		openrouter.WithHTTPReferer("https://myapp.com"),
-	)
+	client := openrouter.NewClient(os.Getenv("OPENROUTER_KEY"))
 
-	for true {
-		fmt.Printf("User: ")
+	for {
+		fmt.Print("User: ")
+
 		scanner.Scan()
+
 		message := scanner.Text()
 
 		if message == "exit" {
 			break
 		}
 
-		resp, err := client.CreateChatCompletion(
-			context.Background(),
-			openrouter.ChatCompletionRequest{
-				Messages: []openrouter.ChatCompletionMessage{
-					openrouter.UserMessage(buildPrompt(message)),
-				},
-			},
-		)
+		stream, err := callLLM(client, message)
+
 		if err != nil {
-			fmt.Printf("ChatCompletion error: %v\n", err)
-			return
+			log.Fatal(err)
 		}
-		fmt.Println(resp.Model+": ", resp.Choices[0].Message.Content)
+
+		var fullResponse strings.Builder
+
+		for {
+			response, err := stream.Recv()
+
+			if errors.Is(err, io.EOF) {
+				fmt.Println("\nstream finished")
+				break
+			}
+
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if len(response.Choices) > 0 {
+				token := response.Choices[0].Delta.Content
+
+				fmt.Print(token)
+
+				fullResponse.WriteString(token)
+			}
+		}
+
+		stream.Close()
+
+		content := strings.TrimSpace(fullResponse.String())
+
+		var toolCall ToolCall
+
+		err = json.Unmarshal([]byte(content), &toolCall)
+
+		if err == nil && toolCall.Tool != "" {
+			fmt.Println("\n\nTOOL DETECTED")
+			toolRes := callTool(toolCall)
+			fmt.Println(toolRes[0])
+
+		}
 	}
 
-	fmt.Printf("Thanks for using codegen")
-
+	fmt.Println("Thanks for using codegen")
 }
