@@ -24,10 +24,15 @@ func main() {
 
 	client := openrouter.NewClient(os.Getenv("OPENROUTER_KEY"))
 
+	var messages []openrouter.ChatCompletionMessage
+	messages = append(messages, openrouter.UserMessage(buildSystemPrompt()))
+
 	for {
 		fmt.Print("User: ")
 
-		scanner.Scan()
+		if !scanner.Scan() {
+			break
+		}
 
 		message := scanner.Text()
 
@@ -35,48 +40,67 @@ func main() {
 			break
 		}
 
-		stream, err := callLLM(client, message)
+		messages = append(messages, openrouter.UserMessage(message))
 
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var fullResponse strings.Builder
+		depth := 0
+		const maxDepth = 5
 
 		for {
-			response, err := stream.Recv()
-
-			if errors.Is(err, io.EOF) {
-				fmt.Println("\nstream finished")
-				break
-			}
-
+			stream, err := callLLM(client, messages)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			if len(response.Choices) > 0 {
-				token := response.Choices[0].Delta.Content
+			var fullResponse strings.Builder
 
-				fmt.Print(token)
+			for {
+				response, err := stream.Recv()
 
-				fullResponse.WriteString(token)
+				if errors.Is(err, io.EOF) {
+					break
+				}
+
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				if len(response.Choices) > 0 {
+					token := response.Choices[0].Delta.Content
+
+					fmt.Print(token)
+
+					fullResponse.WriteString(token)
+				}
 			}
-		}
+			fmt.Println("\n-------------------------------------------------\n")
 
-		stream.Close()
+			stream.Close()
 
-		content := strings.TrimSpace(fullResponse.String())
+			content := strings.TrimSpace(fullResponse.String())
 
-		var toolCall ToolCall
+			messages = append(messages, openrouter.AssistantMessage(content))
 
-		err = json.Unmarshal([]byte(content), &toolCall)
+			var toolCall ToolCall
 
-		if err == nil && toolCall.Tool != "" {
-			fmt.Println("\n\nTOOL DETECTED")
-			toolRes := callTool(toolCall)
-			fmt.Println(toolRes[0])
+			err = json.Unmarshal([]byte(content), &toolCall)
 
+			if err == nil && toolCall.Tool != "" {
+				depth++
+
+				if depth >= maxDepth {
+					fmt.Println("\n\n(max tool depth reached)")
+					break
+				}
+
+				fmt.Println()
+				result := callTool(toolCall)
+
+				messages = append(messages, openrouter.UserMessage("Tool result: "+result))
+
+				fmt.Print("User: (tool result)\n")
+			} else {
+				break
+			}
 		}
 	}
 
