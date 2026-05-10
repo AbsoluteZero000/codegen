@@ -12,10 +12,11 @@ func check(err error) {
 	}
 }
 
-func callLLM(client *openrouter.Client, messages []openrouter.ChatCompletionMessage) (*openrouter.ChatCompletionStream, error) {
+func callLLM(client *openrouter.Client, messages []openrouter.ChatCompletionMessage, model string) (*openrouter.ChatCompletionStream, error) {
 	return client.CreateChatCompletionStream(
 		context.Background(),
 		openrouter.ChatCompletionRequest{
+			Model:    model,
 			Messages: messages,
 			Stream:   true,
 		},

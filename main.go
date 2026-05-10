@@ -22,6 +22,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	client := openrouter.NewClient(os.Getenv("OPENROUTER_KEY"))
+	model := os.Getenv("MODEL")
 
 	var messages []openrouter.ChatCompletionMessage
 	messages = append(messages, openrouter.UserMessage(buildSystemPrompt()))
@@ -51,16 +52,18 @@ func main() {
 		const maxDepth = 5
 
 		for {
-			stream, err := callLLM(client, messages)
+			stream, err := callLLM(client, messages, model)
 			if err != nil {
-				log.Fatal(err)
+				fmt.Printf("\nLLM error: %v\n", err)
+				break
 			}
 
 			var fullResponse strings.Builder
 
 			first, err := stream.Recv()
 			if err != nil && !errors.Is(err, io.EOF) {
-				log.Fatal(err)
+				fmt.Printf("\nStream error: %v\n", err)
+				break
 			}
 			if err == nil {
 				fmt.Printf("LLM name: %s\n", first.Model)
@@ -79,7 +82,8 @@ func main() {
 				}
 
 				if err != nil {
-					log.Fatal(err)
+					fmt.Printf("\nStream error: %v\n", err)
+					break
 				}
 
 				if len(response.Choices) > 0 {
@@ -108,10 +112,12 @@ func main() {
 					break
 				}
 
+				toolCall.CallID = newToolCallID()
+
 				fmt.Println()
 				result := callTool(*toolCall)
 
-				messages = append(messages, openrouter.UserMessage("Tool result: "+result))
+				messages = append(messages, openrouter.ToolMessage(toolCall.CallID, result))
 
 				fmt.Print("User: (tool result)\n")
 			} else {

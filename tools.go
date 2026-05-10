@@ -21,6 +21,12 @@ func callTool(toolCall ToolCall) string {
 	case "bash":
 		return bash(toolCall.Arguments.Command)
 
+	case "lsDir":
+		return lsDir(toolCall.Arguments.Path)
+
+	case "glob":
+		return glob(toolCall.Arguments.Pattern)
+
 	default:
 		fmt.Println("unknown tool")
 	}
@@ -29,24 +35,26 @@ func callTool(toolCall ToolCall) string {
 }
 
 func readFile(filePath string) string {
-	wd, err := os.Getwd()
-	check(err)
-
-	path := filepath.Join(wd, filePath)
+	path := filepath.Clean(filePath)
+	if !filepath.IsLocal(path) {
+		return "readFile error: path must be local"
+	}
 	data, err := os.ReadFile(path)
-	check(err)
-
+	if err != nil {
+		return fmt.Sprintf("readFile error: %v", err)
+	}
 	return string(data)
 }
 
 func writeFile(filePath string, content string) string {
-	wd, err := os.Getwd()
-	check(err)
-
-	path := filepath.Join(wd, filePath)
-	err = os.WriteFile(path, []byte(content), 0644)
-	check(err)
-
+	path := filepath.Clean(filePath)
+	if !filepath.IsLocal(path) {
+		return "writeFile error: path must be local"
+	}
+	err := os.WriteFile(path, []byte(content), 0644)
+	if err != nil {
+		return fmt.Sprintf("writeFile error: %v", err)
+	}
 	return "File written: " + path
 }
 
@@ -107,4 +115,35 @@ func parseToolCall(content string) *ToolCall {
 	}
 
 	return nil
+}
+
+func lsDir(dirPath string) string {
+	if dirPath == "" {
+		dirPath = "."
+	}
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return fmt.Sprintf("lsDir error: %v", err)
+	}
+	var b strings.Builder
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() {
+			name += "/"
+		}
+		b.WriteString(name)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func glob(pattern string) string {
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Sprintf("glob error: %v", err)
+	}
+	if len(matches) == 0 {
+		return "(no matches)"
+	}
+	return strings.Join(matches, "\n")
 }
