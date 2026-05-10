@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,26 +12,6 @@ import (
 	"github.com/joho/godotenv"
 	openrouter "github.com/revrost/go-openrouter"
 )
-
-func parseToolCall(content string) *ToolCall {
-	content = strings.TrimSpace(content)
-
-	var toolCall ToolCall
-	if err := json.Unmarshal([]byte(content), &toolCall); err == nil && toolCall.Tool != "" {
-		return &toolCall
-	}
-
-	start := strings.Index(content, "{")
-	end := strings.LastIndex(content, "}")
-	if start != -1 && end != -1 && end > start {
-		jsonStr := content[start : end+1]
-		if err := json.Unmarshal([]byte(jsonStr), &toolCall); err == nil && toolCall.Tool != "" {
-			return &toolCall
-		}
-	}
-
-	return nil
-}
 
 func main() {
 	err := godotenv.Load()
@@ -56,11 +35,17 @@ func main() {
 
 		message := scanner.Text()
 
-		if message == "exit" {
+		if !handleCommand(client, message) {
 			break
 		}
 
+		if message == "list" || message == "list free" {
+			continue
+		}
+
 		messages = append(messages, openrouter.UserMessage(message))
+
+		fmt.Println("\n-------------------------------------------------")
 
 		depth := 0
 		const maxDepth = 5
@@ -72,6 +57,19 @@ func main() {
 			}
 
 			var fullResponse strings.Builder
+
+			first, err := stream.Recv()
+			if err != nil && !errors.Is(err, io.EOF) {
+				log.Fatal(err)
+			}
+			if err == nil {
+				fmt.Printf("LLM name: %s\n", first.Model)
+				if len(first.Choices) > 0 {
+					token := first.Choices[0].Delta.Content
+					fmt.Print(token)
+					fullResponse.WriteString(token)
+				}
+			}
 
 			for {
 				response, err := stream.Recv()

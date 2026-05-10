@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -86,4 +87,24 @@ func sanitize(command string) string {
 	}
 
 	return command
+}
+
+func parseToolCall(content string) *ToolCall {
+	content = strings.TrimSpace(content)
+
+	var toolCall ToolCall
+	if err := json.Unmarshal([]byte(content), &toolCall); err == nil && toolCall.Tool != "" {
+		return &toolCall
+	}
+
+	start := strings.Index(content, "{")
+	end := strings.LastIndex(content, "}")
+	if start != -1 && end != -1 && end > start {
+		jsonStr := content[start : end+1]
+		if err := json.Unmarshal([]byte(jsonStr), &toolCall); err == nil && toolCall.Tool != "" {
+			return &toolCall
+		}
+	}
+
+	return nil
 }
